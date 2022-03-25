@@ -87,10 +87,13 @@ export default defineComponent({
 .upload-demo {
   background: #fff;
   .upload-title {
-    font-family: PingFangSC-Regular;
-    font-size: 14px;
-    color: #999999;
-    padding: 12px 0 0 16px;
+    padding: 12px 0 12px 16px;
+    color: rgba(0, 0, 0, 0.9);
+    font-size: 16px;
+    font-weight: 400;
+    font-family: PingFang SC;
+    text-align: left;
+    line-height: 24px;
   }
 }
 </style>
