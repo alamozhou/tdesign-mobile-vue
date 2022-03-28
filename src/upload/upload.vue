@@ -19,7 +19,7 @@
           <!--上传失败时，reload重试-->
           <div v-if="file.status === 'fail'" :class="`${UPLOAD_NAME}__card-mask`">
             <span key="refresh-icon" :class="`${UPLOAD_NAME}__card-mask-item`" @click="stopPropagation">
-              <refresh-icon @click="(e) => handleReload(e, file)" />
+              <refresh-icon @click="handleReload(file)" />
             </span>
           </div>
         </div>
@@ -50,13 +50,13 @@
   </div>
 </template>
 <script lang="ts">
-import { defineComponent, SetupContext, getCurrentInstance, ref, watch, Ref, toRefs, computed } from 'vue';
+import { defineComponent, SetupContext, getCurrentInstance, ref, Ref, toRefs, computed } from 'vue';
 import { AddIcon, CloseIcon, RefreshIcon } from 'tdesign-icons-vue-next';
 import findIndex from 'lodash/findIndex';
 import xhr from '../_common/js/upload/xhr';
 import { useDefault, useEmitEvent, isFunction, isArray, isObject, renderTNode, TNode } from '../shared';
 import { TdUploadProps, UploadFile, RequestMethodResponse, SizeLimitObj } from './type';
-import { HTMLInputEvent, SuccessContext, InnerProgressContext } from './interface';
+import { SuccessContext, InnerProgressContext } from './interface';
 import props from './props';
 import config from '../config';
 import { isOverSizeLimit } from './util';
@@ -90,7 +90,7 @@ export default defineComponent({
     const UPLOAD_NAME = name;
     const xhrReq = ref(null);
     // 等待上传的文件
-    const toUploadFiles = ref([]);
+    const toUploadFiles: Ref<Array<UploadFile>> = ref([]);
     // 上传成功的文件
     const uploadedFiles = computed(() => {
       if (isArray(innerFiles.value)) {
@@ -144,20 +144,20 @@ export default defineComponent({
       });
     };
 
-    const handleReload = (e: MouseEvent, file: UploadFile) => {
+    const handleReload = (file: UploadFile) => {
       uploadFiles([file.raw]);
     };
 
-    const handleChange = (event: HTMLInputEvent) => {
-      const { files } = event.target;
-      const input = inputRef.value as HTMLInputElement;
+    const handleChange = (event: Event) => {
+      const { files } = <HTMLInputElement>event.target;
+      const input = <HTMLInputElement>inputRef.value;
       if (props.disabled) return;
       uploadFiles(files);
       input.value = '';
     };
 
     const handleBeforeUpload = (file: File | UploadFile): Promise<boolean> => {
-      if (isFunction(props.beforeUpload)) {
+      if (props.beforeUpload && isFunction(props.beforeUpload)) {
         const beforeUpload = props.beforeUpload(file);
         if (beforeUpload instanceof Promise) return beforeUpload;
         return Promise.resolve(beforeUpload);
@@ -194,7 +194,7 @@ export default defineComponent({
       }
       tmpFiles.forEach((fileRaw: File) => {
         let file: UploadFile | File = fileRaw;
-        if (isFunction(props.format)) {
+        if (props.format && isFunction(props.format)) {
           file = props.format(fileRaw);
         }
         const uploadFile: UploadFile = {
@@ -214,7 +214,7 @@ export default defineComponent({
         };
         handleBeforeUpload(file).then((canUpload) => {
           if (!canUpload) return;
-          const newFiles = toUploadFiles.value.concat();
+          const newFiles: Array<UploadFile> = toUploadFiles.value.concat();
           newFiles.push(uploadFile);
           toUploadFiles.value = [...new Set(newFiles)];
           if (props.autoUpload) {
@@ -334,7 +334,7 @@ export default defineComponent({
       if (!file) throw new Error('Error file');
       file.status = 'success';
       let res = response;
-      if (isFunction(props.formatResponse)) {
+      if (props.formatResponse && isFunction(props.formatResponse)) {
         res = props.formatResponse(response, { file });
       }
       // 如果返回值存在 error，则认为当前接口上传失败
@@ -373,7 +373,7 @@ export default defineComponent({
       const { event, file, response, resFormatted } = options;
       file.status = 'fail';
       let res = response;
-      if (!resFormatted && isFunction(props.formatResponse)) {
+      if (!resFormatted && props.formatResponse && isFunction(props.formatResponse)) {
         res = props.formatResponse(response, { file });
       }
       errorMsg.value = res?.error;
