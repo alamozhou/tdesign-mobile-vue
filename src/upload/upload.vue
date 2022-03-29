@@ -88,7 +88,7 @@ export default defineComponent({
     const showViewer = ref(false);
     const initialIndex = ref(0);
     const UPLOAD_NAME = name;
-    const xhrReq = ref(null);
+    const xhrReq = ref<XMLHttpRequest | null>(null);
     // 等待上传的文件
     const toUploadFiles: Ref<Array<UploadFile>> = ref([]);
     // 上传成功的文件
@@ -171,9 +171,14 @@ export default defineComponent({
     };
 
     const handleSizeLimit = (fileSize: number) => {
-      const sizeLimit: SizeLimitObj =
-        typeof props.sizeLimit === 'number' ? { size: props.sizeLimit, unit: 'KB' } : props.sizeLimit;
-
+      let sizeLimit: SizeLimitObj;
+      if (typeof props.sizeLimit === 'number') {
+        sizeLimit = { size: props.sizeLimit, unit: 'KB' };
+      } else if (typeof props.sizeLimit === 'object') {
+        sizeLimit = props.sizeLimit;
+      } else {
+        sizeLimit = { size: 0, unit: 'KB' };
+      }
       const isOverSize = isOverSizeLimit(fileSize, sizeLimit.size, sizeLimit.unit);
       if (isOverSize) {
         errorMsg.value = sizeLimit.message
@@ -210,7 +215,7 @@ export default defineComponent({
         const reader = new FileReader();
         reader.readAsDataURL(fileRaw);
         reader.onload = (event: ProgressEvent<FileReader>) => {
-          uploadFile.url = event.target.result as string;
+          uploadFile.url = event.target?.result as string;
         };
         handleBeforeUpload(file).then((canUpload) => {
           if (!canUpload) return;
@@ -279,10 +284,10 @@ export default defineComponent({
         const request = xhr;
         xhrReq.value = request({
           action: props.action,
-          data: props.data,
+          data: props.data || {},
           method: props.method,
           file,
-          headers: props.headers,
+          headers: props.headers || {},
           withCredentials: props.withCredentials,
           onError: handleError,
           onProgress: handleProgress,
@@ -296,7 +301,7 @@ export default defineComponent({
         console.warn('TDesign Upload Warn: `requestMethod` must be a function.');
         return;
       }
-      props.requestMethod(file).then((res: RequestMethodResponse) => {
+      props.requestMethod?.(file).then((res: RequestMethodResponse) => {
         if (!handleRequestMethodResponse(res)) return;
         if (res.status === 'success') {
           handleSuccess({ file, response: res.response });
