@@ -18,7 +18,7 @@
           <img :class="`${UPLOAD_NAME}__card-image`" :src="file.url" @click="(e) => handlePreview(e, file)" />
           <!--上传失败时，reload重试-->
           <div v-if="file.status === 'fail'" :class="`${UPLOAD_NAME}__card-mask`">
-            <span key="refresh-icon" :class="`${UPLOAD_NAME}__card-mask-item`" @click="stopPropagation">
+            <span key="refresh-icon" :class="`${UPLOAD_NAME}__card-mask-item`">
               <refresh-icon @click="handleReload(file)" />
             </span>
           </div>
@@ -50,7 +50,7 @@
   </div>
 </template>
 <script lang="ts">
-import { defineComponent, SetupContext, getCurrentInstance, ref, Ref, toRefs, computed } from 'vue';
+import { defineComponent, SetupContext, getCurrentInstance, ref, Ref, toRefs, computed, ComputedRef } from 'vue';
 import { AddIcon, CloseIcon, RefreshIcon } from 'tdesign-icons-vue-next';
 import findIndex from 'lodash/findIndex';
 import xhr from '../_common/js/upload/xhr';
@@ -73,7 +73,7 @@ export default defineComponent({
   },
   props,
   emits: ['update:files', 'update:modelValue', 'change', 'fail', 'preview', 'progress', 'remove', 'success'],
-  setup(props, context: SetupContext) {
+  setup(props: any, context: SetupContext) {
     const emitEvent = useEmitEvent(props, context.emit);
     const [innerFiles, setInnerFiles] = useDefault<TdUploadProps['files'], TdUploadProps>(
       props,
@@ -92,7 +92,7 @@ export default defineComponent({
     // 等待上传的文件
     const toUploadFiles: Ref<Array<UploadFile>> = ref([]);
     // 上传成功的文件
-    const uploadedFiles = computed(() => {
+    const uploadedFiles: ComputedRef<UploadFile[]> = computed(() => {
       if (isArray(innerFiles.value)) {
         // 上传失败的文件用localUrl展示，并且可上传重试
         return innerFiles.value.filter((file) => file.status === 'success' || file.status === 'fail');
@@ -126,9 +126,9 @@ export default defineComponent({
       };
     });
 
-    const stopPropagation = (e: MouseEvent) => {
-      e.stopPropagation();
-    };
+    // const stopPropagation = (e: MouseEvent) => {
+    //   e.stopPropagation();
+    // };
 
     const triggerUpload = () => {
       const input = inputRef.value as HTMLInputElement;
@@ -145,15 +145,25 @@ export default defineComponent({
     };
 
     const handleReload = (file: UploadFile) => {
-      uploadFiles([file.raw]);
+      uploadFiles([file]);
     };
 
     const handleChange = (event: Event) => {
       const { files } = <HTMLInputElement>event.target;
+      if (props.disabled || !files) return;
       const input = <HTMLInputElement>inputRef.value;
-      if (props.disabled) return;
-      uploadFiles(files);
+      uploadFiles(formatFileToUploadFile(files));
       input.value = '';
+    };
+
+    const formatFileToUploadFile = (files: any): UploadFile[] => {
+      if (!props.format || !isFunction(props.format)) return files;
+
+      const NewFiles = [...files];
+      NewFiles.forEach((item) => {
+        item = props.format?.(item);
+      });
+      return NewFiles;
     };
 
     const handleBeforeUpload = (file: File | UploadFile): Promise<boolean> => {
@@ -188,7 +198,7 @@ export default defineComponent({
       return isOverSize;
     };
 
-    const uploadFiles = (files: FileList) => {
+    const uploadFiles = (files: UploadFile[]) => {
       const { max } = toRefs(props);
       let tmpFiles = [...files];
       if (max.value) {
@@ -197,12 +207,9 @@ export default defineComponent({
           console.warn(`TDesign Upload Warn: you can only upload ${max.value} files`);
         }
       }
-      tmpFiles.forEach((fileRaw: File) => {
-        let file: UploadFile | File = fileRaw;
-        if (props.format && isFunction(props.format)) {
-          file = props.format(fileRaw);
-        }
+      tmpFiles.forEach((fileRaw: UploadFile) => {
         const uploadFile: UploadFile = {
+          ...fileRaw,
           raw: fileRaw,
           lastModified: fileRaw.lastModified,
           name: fileRaw.name,
@@ -210,14 +217,13 @@ export default defineComponent({
           type: fileRaw.type,
           percent: 0,
           status: 'waiting',
-          ...file,
         };
         const reader = new FileReader();
         reader.readAsDataURL(fileRaw);
         reader.onload = (event: ProgressEvent<FileReader>) => {
           uploadFile.url = event.target?.result as string;
         };
-        handleBeforeUpload(file).then((canUpload) => {
+        handleBeforeUpload(fileRaw).then((canUpload) => {
           if (!canUpload) return;
           const newFiles: Array<UploadFile> = toUploadFiles.value.concat();
           newFiles.push(uploadFile);
@@ -292,7 +298,7 @@ export default defineComponent({
           onError: handleError,
           onProgress: handleProgress,
           onSuccess: handleSuccess,
-        });
+        } as any);
       }
     };
 
@@ -307,7 +313,7 @@ export default defineComponent({
           handleSuccess({ file, response: res.response });
         } else if (res.status === 'fail') {
           const r = res.response || {};
-          handleError({ event: null, file, response: { ...r, error: res.error } });
+          handleError({ event: undefined, file, response: { ...r, error: res.error } });
         }
       });
     };
@@ -340,13 +346,13 @@ export default defineComponent({
       file.status = 'success';
       let res = response;
       if (props.formatResponse && isFunction(props.formatResponse)) {
-        res = props.formatResponse(response, { file });
+        res = props.formatResponse(response, { file: file as UploadFile });
       }
       // 如果返回值存在 error，则认为当前接口上传失败
       if (res?.error) {
         handleError({
           event,
-          file,
+          file: file as UploadFile,
           response: res,
           resFormatted: true,
         });
@@ -357,8 +363,8 @@ export default defineComponent({
       const index = findIndex(toUploadFiles.value, (o: any) => o.name === file.name);
       toUploadFiles.value.splice(index, 1);
       // 上传成功的文件发送到 files
-      const newFile: UploadFile = { ...file, response: res };
-      const files = uploadedFiles.value.concat(newFile);
+      const newFile = { ...file, response: res };
+      const files = uploadedFiles.value.concat(newFile as UploadFile);
       setInnerFiles(files, { e: event, response: res, trigger: 'upload-success' });
       emitEvent('success', {
         file,
@@ -366,7 +372,7 @@ export default defineComponent({
         e: event,
         response: res,
       });
-      images.value.push(newFile.url);
+      images.value.push(newFile.url as string);
     };
 
     const handleError = (options: {
@@ -374,7 +380,7 @@ export default defineComponent({
       file: UploadFile;
       response?: any;
       resFormatted?: boolean;
-    }) => {
+    }): any => {
       const { event, file, response, resFormatted } = options;
       file.status = 'fail';
       let res = response;
@@ -412,7 +418,7 @@ export default defineComponent({
       itemContentStyle,
       emitEvent,
       setInnerFiles,
-      stopPropagation,
+      // stopPropagation,
       triggerUpload,
       handleChange,
       handlePreview,
