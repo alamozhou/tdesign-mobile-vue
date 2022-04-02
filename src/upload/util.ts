@@ -40,5 +40,5 @@ export function isOverSizeLimit(fileSize: number, sizeLimit: number, unit: SizeU
   }
   const num = SIZE_MAP[unit];
   const limit = index < KB_INDEX ? sizeLimit / num : sizeLimit * num;
-  return fileSize <= limit;
+  return fileSize > limit;
 }

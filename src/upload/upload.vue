@@ -93,7 +93,7 @@ export default defineComponent({
     const toUploadFiles: Ref<Array<UploadFile>> = ref([]);
     // 上传成功的文件
     const uploadedFiles: ComputedRef<UploadFile[]> = computed(() => {
-      if (isArray(innerFiles.value)) {
+      if (innerFiles.value && isArray(innerFiles.value)) {
         // 上传失败的文件用localUrl展示，并且可上传重试
         return innerFiles.value.filter((file) => file.status === 'success' || file.status === 'fail');
       }
@@ -125,10 +125,6 @@ export default defineComponent({
         width: `${width}px`,
       };
     });
-
-    // const stopPropagation = (e: MouseEvent) => {
-    //   e.stopPropagation();
-    // };
 
     const triggerUpload = () => {
       const input = inputRef.value as HTMLInputElement;
@@ -193,9 +189,10 @@ export default defineComponent({
       if (isOverSize) {
         errorMsg.value = sizeLimit.message
           ? sizeLimit.message
-          : `TDesign Upoad Error: uploaded picture exceeds ${props.sizeLimit}${sizeLimit.unit} restrictions`;
+          : `TDesign Upoad Error: uploaded picture exceeds ${sizeLimit.size} ${sizeLimit.unit} restrictions`;
       }
-      return isOverSize;
+      console.error(errorMsg.value);
+      return !isOverSize;
     };
 
     const uploadFiles = (files: UploadFile[]) => {
@@ -418,7 +415,6 @@ export default defineComponent({
       itemContentStyle,
       emitEvent,
       setInnerFiles,
-      // stopPropagation,
       triggerUpload,
       handleChange,
       handlePreview,
